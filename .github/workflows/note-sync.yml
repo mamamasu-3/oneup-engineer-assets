@@ -1,0 +1,42 @@
+name: note 新規記事の画像同期
+
+on:
+  schedule:
+    # 毎日 00:00 UTC（＝日本時間 09:00）に実行
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}  # 手動実行も可能
+
+concurrency:
+  group: note-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # 画像・manifest のコミットに必要
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 新規記事を同期して Discord に通知
+        id: sync
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NOTE_CREATOR: oneup_engineer
+        run: python scripts/sync_note.py
+
+      - name: 変更をコミット & push
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add images/
+          git commit -m "note新規記事の画像を自動追加（${{ steps.sync.outputs.count }}件）"
+          git push
